@@ -20,6 +20,7 @@
             nodejs_20
 
             zig
+            zls
           ];
 
           shellHook = ''
