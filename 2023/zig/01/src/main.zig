@@ -1,24 +1,67 @@
 const std = @import("std");
+const ArrayList = std.ArrayList;
+
+const Allocator = std.mem.Allocator;
+const Elf = u32;
 
 pub fn main() !void {
-    // Prints to stderr (it's a shortcut based on `std.io.getStdErr()`)
-    std.debug.print("All your {s} are belong to us.\n", .{"codebase"});
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const allocator = gpa.allocator();
 
-    // stdout is for the actual output of your application, for example if you
-    // are implementing gzip, then only the compressed bytes should be sent to
-    // stdout, not any debugging messages.
-    const stdout_file = std.io.getStdOut().writer();
-    var bw = std.io.bufferedWriter(stdout_file);
-    const stdout = bw.writer();
+    var elfs = try mapFileContentToElfs(allocator, "input.txt");
 
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
+    var calMax: u32 = 0;
+    std.sort.heap(u32, elfs.items, {}, std.sort.asc(u32));
 
-    try bw.flush(); // don't forget to flush!
+    for (elfs.items[(elfs.items.len - 3)..]) |value| {
+        std.debug.print("top 3 max cal: {}\n", .{value});
+        calMax += value;
+    }
+
+    elfs.deinit();
+
+    std.debug.print("max cal: {}\n", .{calMax});
 }
 
-test "simple test" {
-    var list = std.ArrayList(i32).init(std.testing.allocator);
-    defer list.deinit(); // try commenting this out and see if zig detects the memory leak!
-    try list.append(42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
+fn mapFileContentToElfs(allocator: Allocator, path: []const u8) !ArrayList(Elf) {
+    const file = try std.fs.cwd().openFile(path, .{});
+    defer file.close();
+
+    var reader = file.reader();
+
+    var buf: [1024]u8 = undefined;
+    var output = std.io.fixedBufferStream(&buf);
+
+    const writer = output.writer();
+
+    var result = ArrayList(Elf).init(allocator);
+    var elf: Elf = 0;
+    try result.append(elf);
+
+    while (true) {
+        reader.streamUntilDelimiter(writer, '\n', 1024) catch |err| switch (err) {
+            error.EndOfStream => {
+                break;
+            },
+            else => |e| return e,
+        };
+
+        var line = output.getWritten();
+
+        std.debug.print("line: {s}\n", .{line});
+
+        if (line.len > 0) {
+            elf += try std.fmt.parseUnsigned(u32, line, 10);
+
+            std.debug.print("calorie: {}\n", .{elf});
+        } else {
+            try result.append(elf);
+
+            elf = 0;
+        }
+
+        output.reset();
+    }
+
+    return result;
 }
